@@ -14,6 +14,9 @@ Two modes, matching the gate's arming contract:
     #    compared with what is already live; a blocked page never goes live.
     python3 examples/city_guides/run_gate.py --enforce --threshold 0.40
 
+    # 3. Explain one pair: shared shingles, Jaccard, and the gate's verdict.
+    python3 examples/city_guides/run_gate.py --pair bramwell alderbrook --threshold 0.40
+
 Add --keep-chrome to score the pages WITHOUT stripping header/nav/footer.
 Stdlib only.
 """
@@ -26,6 +29,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent.parent))
 
+import text_similarity as ts  # noqa: E402
 from homogeneity_gate import PROVISIONAL_THRESHOLD, HomogeneityGate  # noqa: E402
 
 PAGES = HERE / "pages"
@@ -85,10 +89,28 @@ def enforce(pages: dict[str, str], gate: HomogeneityGate) -> None:
     print(f"published {len(live)}, blocked {blocked}")
 
 
+def pair(pages: dict[str, str], gate: HomogeneityGate, a: str, b: str) -> None:
+    k, tags = gate.shingle_k, gate.boilerplate_tags
+    ta, tb = ts.tokenize(pages[a], ignore_tags=tags), ts.tokenize(pages[b], ignore_tags=tags)
+    sa, sb = ts._shingles(ta, k), ts._shingles(tb, k)
+    shared = sa & sb
+    r = gate.evaluate(pages[a], [(b, pages[b])])
+    print(f"PAIR: {a} ({kind(a)}) vs {b} ({kind(b)}), {k}-word shingles")
+    print(f"{a} opens: {' '.join(ta[:16])}")
+    print(f"{b} opens: {' '.join(tb[:16])}")
+    print(f"words in {a} not in {b}: {' '.join(sorted(set(ta) - set(tb))[:8]) or '-'}")
+    print(f"shingles: {a} {len(sa)}, {b} {len(sb)}, shared {len(shared)}, union {len(sa | sb)}")
+    print(f"jaccard: {len(shared)} / {len(sa | sb)} = {ts.shingle_jaccard(pages[a], pages[b], k, ignore_tags=tags):.3f}")
+    verdict = "PASS" if r.passed and not r.would_block else ("BLOCK" if not r.passed else "WOULD-BLOCK")
+    print(f"verdict at threshold {gate.threshold:.2f}: {verdict}  {r.reason or '-'}")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--enforce", action="store_true", help="hold pages over the threshold")
     ap.add_argument("--threshold", type=float, default=PROVISIONAL_THRESHOLD)
+    ap.add_argument("--pair", nargs=2, metavar=("PAGE", "OTHER"),
+                    help="explain the score for one pair of pages")
     ap.add_argument("--keep-chrome", action="store_true",
                     help="do not strip header/nav/footer before scoring")
     args = ap.parse_args(argv)
@@ -102,6 +124,15 @@ def main(argv: list[str] | None = None) -> int:
     if len(pages) != 12:
         print(f"expected 12 sample pages in {PAGES}, found {len(pages)}", file=sys.stderr)
         return 1
+    if args.pair:
+        missing = [s for s in args.pair if s not in pages]
+        if missing:
+            print(f"unknown page(s): {', '.join(missing)}; choose from {', '.join(pages)}",
+                  file=sys.stderr)
+            return 1
+        gate.enforce = True
+        pair(pages, gate, *args.pair)
+        return 0
     (enforce if args.enforce else shadow)(pages, gate)
     return 0
 
