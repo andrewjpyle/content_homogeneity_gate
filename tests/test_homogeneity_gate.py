@@ -1,6 +1,6 @@
 """Tests for the homogeneity gate.
 
-The decision matrix — block / pass / shadow / fail-closed / calibration — ported
+The decision matrix (block / pass / shadow / fail-closed / calibration), ported
 to the corpus-supplied API. Stdlib unittest, no dependencies.
 
     python3 -m unittest discover -s tests -v
@@ -143,6 +143,58 @@ class Observability(unittest.TestCase):
         s = gate_signal([])
         self.assertEqual(s["block_rate"], 0.0)
         self.assertEqual(s["scored"], 0)
+
+
+class CorpusShapes(unittest.TestCase):
+    def test_generator_corpus_blocks_instead_of_raising(self):
+        rows = (r for r in [("recap-prior", BODY_A)])   # read-once iterable
+        r = gate(enforce=True, threshold=0.4).evaluate(NEAR_DUP, rows)
+        self.assertFalse(r.passed)
+        self.assertFalse(r.failed_closed)
+        self.assertEqual(r.match_ref, "recap-prior")
+
+
+class Boilerplate(unittest.TestCase):
+    CHROME_H = ("<header><nav>home all cities itineraries about us get the weekly newsletter "
+                "sign up for deals and trip ideas every friday morning</nav></header>")
+    CHROME_F = ("<footer>wayfarer guides is an independent travel publication prices and "
+                "opening hours change confirm with each venue before you go copyright all "
+                "rights reserved privacy policy terms of use contact the editors</footer>")
+
+    def page(self, body: str) -> str:
+        return f"{self.CHROME_H}<main>{body}</main>{self.CHROME_F}"
+
+    def test_shared_chrome_alone_can_block_a_unique_page(self):
+        a = self.page("the canal towpath runs three miles past six locks and a tea hatch")
+        b = self.page("the observatory opens a sixteen inch telescope on friday nights")
+        r = HomogeneityGate(enforce=True, threshold=0.4).evaluate(a, [("other", b)])
+        self.assertFalse(r.passed)
+
+    def test_boilerplate_tags_ignore_chrome(self):
+        a = self.page("the canal towpath runs three miles past six locks and a tea hatch")
+        b = self.page("the observatory opens a sixteen inch telescope on friday nights")
+        g = HomogeneityGate(enforce=True, threshold=0.4,
+                            boilerplate_tags=("header", "nav", "footer"))
+        r = g.evaluate(a, [("other", b)])
+        self.assertTrue(r.passed)
+        self.assertEqual(r.score, 0.0)
+
+
+class SampleCorpus(unittest.TestCase):
+    """End to end on examples/city_guides: the committed fictional corpus."""
+
+    def test_enforce_blocks_every_later_template_copy_and_passes_unique_pages(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples" / "city_guides"))
+        import run_gate  # noqa: E402
+        pages = run_gate.load_pages()
+        g = HomogeneityGate(threshold=0.40, enforce=True, boilerplate_tags=run_gate.CHROME)
+        live, blocked = [], []
+        for slug in run_gate.PUBLISH_ORDER:
+            r = g.evaluate(pages[slug], live)
+            (live.append((slug, pages[slug])) if r.passed else blocked.append(slug))
+        templated_order = [s for s in run_gate.PUBLISH_ORDER if s in run_gate.TEMPLATED]
+        self.assertEqual(blocked, templated_order[1:])   # first copy has nothing to match
+        self.assertEqual(len(live), 6)
 
 
 if __name__ == "__main__":
