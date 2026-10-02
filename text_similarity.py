@@ -194,7 +194,7 @@ def _rescued(a: set[str], b: set[str], ratio: Optional[float]) -> bool:
     """Template rescue: True when two keyword sets overlap by >= ``ratio``."""
     if ratio is None or not a or not b:
         return False
-    return len(a & b) / len(a | b) >= ratio
+    return False  # CI red proof: template rescue disabled
 
 
 def max_similarity(
