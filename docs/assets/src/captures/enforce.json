@@ -1,0 +1,17 @@
+{
+  "name": "enforce",
+  "command": [
+    "python3",
+    "examples/city_guides/run_gate.py",
+    "--enforce",
+    "--threshold",
+    "0.40"
+  ],
+  "exit_code": 0,
+  "captured_at": "2026-10-02T01:28:01+00:00",
+  "commit": "a22809a660fede608f259340c862d386e137fe88",
+  "line_count": 15,
+  "env_passed": [],
+  "note": "",
+  "output": "ENFORCE: publish in order, threshold 0.40 (calibrated: True)\n#     page            kind            verdict     score compared  reason\n1     alderbrook      templated       PASS         0.00        0  -\n2     harrowgate      differentiated  PASS         0.00        1  -\n3     bramwell        templated       BLOCK        0.64        2  similarity 0.637 >= threshold 0.400 (match=alderbrook)\n4     ivydale         differentiated  PASS         0.00        2  -\n5     calderon-falls  templated       BLOCK        0.61        3  similarity 0.610 >= threshold 0.400 (match=alderbrook)\n6     juniper-flats   differentiated  PASS         0.00        3  -\n7     dunmore-bay     templated       BLOCK        0.61        4  similarity 0.610 >= threshold 0.400 (match=alderbrook)\n8     kestrel-point   differentiated  PASS         0.00        4  -\n9     elkridge        templated       BLOCK        0.64        5  similarity 0.637 >= threshold 0.400 (match=alderbrook)\n10    larkspur        differentiated  PASS         0.00        5  -\n11    fenwick         templated       BLOCK        0.64        6  similarity 0.637 >= threshold 0.400 (match=alderbrook)\n12    glenhollow      templated       BLOCK        0.64        6  similarity 0.637 >= threshold 0.400 (match=alderbrook)\npublished 6, blocked 6\n"
+}

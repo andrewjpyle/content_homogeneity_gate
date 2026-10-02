@@ -1,28 +1,27 @@
 """
-Pre-publish homogeneity gate — the anti-templating quality floor for
+Pre-publish homogeneity gate: the anti-templating quality floor for
 AI-generated content at scale.
 
 THE PROBLEM IT SOLVES
 
-When you generate content programmatically — 500 city pages, 10,000 game
-recaps — the failure that gets a site de-indexed is not thin content, it is
+When you generate content programmatically (500 city pages, 10,000 game
+recaps), the failure that gets a site de-indexed is not thin content, it is
 *near-duplicate* content: pages that read like each other because the same model
 filled the same template. Search engines collapse them. This gate scores a draft
 against the corpus your own engine already published and blocks the ones that are
 too similar, BEFORE they go live.
 
 It is deliberately an *intra-corpus* check: near-duplicate of YOUR OTHER PAGES,
-not of the open web (that is Copyscape's job). The distinction matters — scaled
-self-cannibalization is the failure mode of programmatic SEO, and nobody else
-gates it.
+not of the open web (that is Copyscape's job). The distinction matters: scaled
+self-cannibalization is the failure mode of programmatic SEO.
 
-Scoring is ``text_similarity.max_similarity`` — deterministic stdlib
+Scoring is ``text_similarity.max_similarity``: deterministic stdlib
 shingle-Jaccard behind a distinctive-keyword pre-filter. No ML, no network, no
 database. YOU supply the corpus (see ``evaluate``); the gate never queries
 anything, so it drops into a Django ``pre_save`` / publish pipeline, a Celery
 task, a CLI, or a plain script identically.
 
-THE ARMING CONTRACT — why it ships INERT
+THE ARMING CONTRACT: why it ships INERT
 
 A similarity threshold you have not calibrated against your own content is a
 number you made up, and enforcing a made-up threshold will silently cap your
@@ -34,8 +33,8 @@ throughput or drop good pages. So the gate ships in SHADOW mode:
   * ``threshold_is_calibrated()`` is False while the threshold sits at its
     provisional default. Wire this into your arming precondition so nobody flips
     ``enforce=True`` before the threshold means anything. (This gate does not
-    enforce that coupling for you — it exposes the signal so you can.)
-  * Only with ``enforce=True`` does a block actually hold a draft — and only then
+    enforce that coupling for you; it exposes the signal so you can.)
+  * Only with ``enforce=True`` does a block actually hold a draft, and only then
     is the fail-closed contract active: a *crashed* gate holds the draft for
     review rather than letting it auto-publish. In shadow mode a crash records
     the error and passes, because a measurement tool must never drop content.
@@ -74,7 +73,7 @@ class HomogeneityGate:
     """A configured gate. Construct once with your policy, call ``evaluate`` per
     candidate with the corpus you want it compared against.
 
-    Every knob is explicit — nothing is read from a global. In Django, build this
+    Every knob is explicit; nothing is read from a global. In Django, build this
     from ``settings`` at call time; the README shows the wiring.
     """
     threshold: float = PROVISIONAL_THRESHOLD
@@ -82,6 +81,11 @@ class HomogeneityGate:
     shingle_k: int = ts.DEFAULT_SHINGLE_K
     prefilter_stopwords: frozenset = field(default_factory=frozenset)
     prefilter_min_overlap: int = ts.DEFAULT_PREFILTER_MIN_OVERLAP
+    # Template rescue (see text_similarity). None disables it.
+    prefilter_rescue_ratio: Optional[float] = ts.DEFAULT_PREFILTER_RESCUE_RATIO
+    # Elements dropped before scoring, e.g. ("header", "nav", "footer") when you
+    # pass rendered pages whose site chrome is identical on every page.
+    boilerplate_tags: tuple = ()
     # What "uncalibrated" means. Overridable so a caller with a different
     # provisional value still gets a meaningful calibration signal.
     provisional_threshold: float = PROVISIONAL_THRESHOLD
@@ -98,25 +102,29 @@ class HomogeneityGate:
     ) -> GateResult:
         """Score ``candidate_text`` against ``corpus`` and decide pass/block.
 
-        ``corpus`` is ``[(ref, text), ...]`` — YOU supply it (a Django queryset's
+        ``corpus`` is ``[(ref, text), ...]``. YOU supply it (a Django queryset's
         rows, a list of files, whatever). ``ref`` is any identifier you want back
         in ``match_ref`` to point at the offending near-duplicate.
 
         NEVER raises. In ENFORCE mode any internal error fails closed (blocks,
-        held for review). In SHADOW mode the gate only measures — it records the
+        held for review). In SHADOW mode the gate only measures: it records the
         score and a ``would_block`` flag but always passes, so an uncalibrated
         threshold can neither cap throughput nor drop content.
         """
         try:
-            corpus_texts = [t for _, t in corpus]
+            # Materialize once: a generator or queryset iterator can only be
+            # read once, and match_ref below indexes back into the rows.
+            rows = [(ref, text) for ref, text in corpus]
             m = ts.max_similarity(
                 candidate_text,
-                corpus_texts,
+                [text for _, text in rows],
                 k=self.shingle_k,
                 prefilter_min_overlap=self.prefilter_min_overlap,
                 prefilter_stopwords=self.prefilter_stopwords,
+                prefilter_rescue_ratio=self.prefilter_rescue_ratio,
+                ignore_tags=self.boilerplate_tags,
             )
-        except Exception as exc:  # noqa: BLE001 — the gate must never raise
+        except Exception as exc:  # noqa: BLE001: the gate must never raise
             if self.enforce:
                 return GateResult(
                     passed=False,
@@ -138,7 +146,7 @@ class HomogeneityGate:
         if not over:
             return result
 
-        match_ref = corpus[m.best_index][0]
+        match_ref = rows[m.best_index][0]
         detail = (
             f"similarity {score:.3f} >= threshold {self.threshold:.3f} "
             f"(match={match_ref})"
@@ -150,7 +158,7 @@ class HomogeneityGate:
         else:
             result.would_block = True
             result.match_ref = None  # shadow: nothing was actually blocked
-            result.reason = f"shadow: WOULD-BLOCK — {detail}"
+            result.reason = f"shadow: WOULD-BLOCK ({detail})"
         return result
 
 
@@ -169,7 +177,7 @@ class SignalRecord:
 def gate_signal(records: Iterable[SignalRecord]) -> dict:
     """Roll a batch of persisted gate outcomes into an observability summary.
 
-    Pure function — no clock, no DB. The caller decides the window (pass only the
+    Pure function: no clock, no DB. The caller decides the window (pass only the
     records inside it) EXCEPT for ``review_queue_depth``, which is intentionally
     all-time: a held draft stays held until a human clears it, so an undrained
     review queue must stay loud no matter how old. A windowed queue-depth would

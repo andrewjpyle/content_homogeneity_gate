@@ -1,0 +1,19 @@
+{
+  "name": "pair_differentiated",
+  "command": [
+    "python3",
+    "examples/city_guides/run_gate.py",
+    "--pair",
+    "ivydale",
+    "harrowgate",
+    "--threshold",
+    "0.40"
+  ],
+  "exit_code": 0,
+  "captured_at": "2026-10-02T01:28:01+00:00",
+  "commit": "a22809a660fede608f259340c862d386e137fe88",
+  "line_count": 7,
+  "env_passed": [],
+  "note": "",
+  "output": "PAIR: ivydale (differentiated) vs harrowgate (differentiated), 5-word shingles\nivydale opens: ivydale wayfarer guides ivydale for cyclists where the valley climbs start and which ones to skip\nharrowgate opens: harrowgate wayfarer guides harrowgate in a weekend canal locks rope works and a two hour ferry\nwords in ivydale not in harrowgate: 22 2pm 6am 9 9am after alternative averages\nshingles: ivydale 130, harrowgate 152, shared 0, union 282\njaccard: 0 / 282 = 0.000\nverdict at threshold 0.40: PASS  -\n"
+}

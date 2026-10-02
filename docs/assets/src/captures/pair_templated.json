@@ -1,0 +1,19 @@
+{
+  "name": "pair_templated",
+  "command": [
+    "python3",
+    "examples/city_guides/run_gate.py",
+    "--pair",
+    "bramwell",
+    "alderbrook",
+    "--threshold",
+    "0.40"
+  ],
+  "exit_code": 0,
+  "captured_at": "2026-10-02T01:28:01+00:00",
+  "commit": "a22809a660fede608f259340c862d386e137fe88",
+  "line_count": 7,
+  "env_passed": [],
+  "note": "",
+  "output": "PAIR: bramwell (templated) vs alderbrook (templated), 5-word shingles\nbramwell opens: bramwell wayfarer guides the best things to do in bramwell bramwell is a city full of\nalderbrook opens: alderbrook wayfarer guides the best things to do in alderbrook alderbrook is a city full of\nwords in bramwell not in alderbrook: bramwell\nshingles: bramwell 167, alderbrook 167, shared 130, union 204\njaccard: 130 / 204 = 0.637\nverdict at threshold 0.40: BLOCK  similarity 0.637 >= threshold 0.400 (match=alderbrook)\n"
+}

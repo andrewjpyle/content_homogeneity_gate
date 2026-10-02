@@ -1,0 +1,14 @@
+{
+  "name": "shadow",
+  "command": [
+    "python3",
+    "examples/city_guides/run_gate.py"
+  ],
+  "exit_code": 0,
+  "captured_at": "2026-10-02T01:28:01+00:00",
+  "commit": "a22809a660fede608f259340c862d386e137fe88",
+  "line_count": 16,
+  "env_passed": [],
+  "note": "",
+  "output": "SHADOW: each page vs the other 11, threshold 0.55 (calibrated: False)\n#     page            kind            verdict     score compared  reason\n1     alderbrook      templated       WOULD-BLOCK  0.64       11  shadow: WOULD-BLOCK (similarity 0.637 >= threshold 0.550 (match=bramwell))\n2     bramwell        templated       WOULD-BLOCK  0.64       11  shadow: WOULD-BLOCK (similarity 0.637 >= threshold 0.550 (match=alderbrook))\n3     calderon-falls  templated       WOULD-BLOCK  0.61       11  shadow: WOULD-BLOCK (similarity 0.610 >= threshold 0.550 (match=alderbrook))\n4     dunmore-bay     templated       WOULD-BLOCK  0.61       11  shadow: WOULD-BLOCK (similarity 0.610 >= threshold 0.550 (match=alderbrook))\n5     elkridge        templated       WOULD-BLOCK  0.64       11  shadow: WOULD-BLOCK (similarity 0.637 >= threshold 0.550 (match=alderbrook))\n6     fenwick         templated       WOULD-BLOCK  0.64       11  shadow: WOULD-BLOCK (similarity 0.637 >= threshold 0.550 (match=alderbrook))\n7     glenhollow      templated       WOULD-BLOCK  0.64       11  shadow: WOULD-BLOCK (similarity 0.637 >= threshold 0.550 (match=alderbrook))\n8     harrowgate      differentiated  pass         0.00       11  -\n9     ivydale         differentiated  pass         0.00       11  -\n10    juniper-flats   differentiated  pass         0.00       11  -\n11    kestrel-point   differentiated  pass         0.00       11  -\n12    larkspur        differentiated  pass         0.00       11  -\ntemplated       max-similarity range 0.61 to 0.64\ndifferentiated  max-similarity range 0.00 to 0.00\n"
+}

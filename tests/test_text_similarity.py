@@ -1,6 +1,6 @@
 """Tests for the text_similarity primitive.
 
-Stdlib unittest — the primitive has no dependencies and neither does its suite.
+Stdlib unittest: the primitive has no dependencies and neither does its suite.
 
     python3 -m unittest discover -s tests -v
 """
@@ -98,7 +98,7 @@ class MaxSimilarityPrefilter(unittest.TestCase):
             "the lions beat the bears in detroit as jared goff led four scoring drives",
             "the ravens topped the bengals in baltimore behind lamar jackson rushing",
         ]
-        # Candidate is about the Chiefs — shares generic football words with all 6,
+        # Candidate is about the Chiefs. It shares generic football words with all 6,
         # distinctive words (chiefs, mahomes, kansas) with none.
         cand = "the chiefs beat the titans in kansas city as patrick mahomes threw three touchdowns"
         r = ts.max_similarity(cand, corpus, prefilter_stopwords=SPORTS_STOPWORDS)
@@ -121,6 +121,76 @@ class MaxSimilarityPrefilter(unittest.TestCase):
         # With domain stopwords those generic words drop out and nothing clears.
         r_smart = ts.max_similarity(cand, corpus, prefilter_stopwords=SPORTS_STOPWORDS)
         self.assertEqual(r_smart.num_compared, 0)
+
+
+class HtmlNormalization(unittest.TestCase):
+    """Only visible text is content. Scripts, styles, comments and entity names
+    must not turn into shingles shared by every page on a site."""
+
+    def test_script_style_and_comments_are_not_content(self):
+        norm = ts.normalize_text(
+            "<p>Visible words</p><script>gtag('config', 'G-1')</script>"
+            "<style>.a{color:red}</style><!-- editor note --><noscript>enable js</noscript>")
+        self.assertEqual(norm, "visible words")
+
+    def test_identical_tracking_snippets_do_not_inflate_similarity(self):
+        snippet = "<script>" + " ".join(f"track{i}" for i in range(60)) + "</script>"
+        a = "<p>alpha bravo charlie delta echo foxtrot golf hotel</p>" + snippet
+        b = "<p>india juliet kilo lima mike november oscar papa</p>" + snippet
+        self.assertEqual(ts.shingle_jaccard(a, b), 0.0)
+
+    def test_entities_are_decoded_not_tokenized(self):
+        self.assertEqual(ts.normalize_text("Fish &amp; chips&nbsp;here"), "fish chips here")
+
+    def test_ignore_tags_drops_shared_chrome(self):
+        chrome_h = "<header><nav>home cities itineraries about newsletter sign up today</nav></header>"
+        chrome_f = "<footer>copyright wayfarer guides all rights reserved privacy terms contact</footer>"
+        a = chrome_h + "<main>the canal towpath runs three miles past six locks</main>" + chrome_f
+        b = chrome_h + "<main>the observatory opens its telescope on friday nights</main>" + chrome_f
+        self.assertGreater(ts.shingle_jaccard(a, b), 0.3)   # chrome dominates
+        self.assertEqual(
+            ts.shingle_jaccard(a, b, ignore_tags=("header", "nav", "footer")), 0.0)
+
+
+TEMPLATE = ("{c} is a city full of charm history and hidden gems waiting to be discovered. "
+            "Start your day in the historic downtown district of {c} with its locally owned "
+            "shops cozy cafes and beautiful architecture. Food lovers will be delighted by the "
+            "vibrant dining scene in {c}. Outdoor enthusiasts can explore the parks and trails "
+            "around {c}. Plan your visit to {c} today.")
+CITIES = ["Alderbrook", "Bramwell", "Elkridge", "Fenwick", "Glenhollow"]
+
+
+class TemplateRescue(unittest.TestCase):
+    """The README's failure mode: find-and-replace pages that differ only by a
+    swapped name. If the stop word list strips the template's own words (which is
+    what you get by counting the most frequent words in your own output), only the
+    swapped names are left as 'distinctive' and a keyword-only pre-filter never
+    compares the pages."""
+
+    def setUp(self):
+        self.pages = [TEMPLATE.format(c=c) for c in CITIES]
+        # Stop words built from the corpus itself: every keyword in >= half the pages.
+        counts = {}
+        for p in self.pages:
+            for w in ts.keyword_set(p):
+                counts[w] = counts.get(w, 0) + 1
+        self.frequent = {w for w, n in counts.items() if n >= len(self.pages) / 2}
+
+    def test_templated_page_is_still_compared_and_matched(self):
+        r = ts.max_similarity(self.pages[0], self.pages[1:], prefilter_stopwords=self.frequent)
+        self.assertEqual(r.num_compared, len(self.pages) - 1)
+        self.assertGreater(r.score, 0.4)
+
+    def test_rescue_is_what_does_the_work(self):
+        r = ts.max_similarity(self.pages[0], self.pages[1:], prefilter_stopwords=self.frequent,
+                              prefilter_rescue_ratio=None)
+        self.assertEqual(r.num_compared, 0)
+        self.assertEqual(r.score, 0.0)
+
+    def test_identical_very_short_pages_are_compared(self):
+        # One keyword each: below the overlap floor of 2, rescued as identical.
+        r = ts.max_similarity("<h1>Contact</h1>", ["<h1>Contact</h1>"])
+        self.assertEqual((r.num_compared, r.score), (1, 1.0))
 
 
 if __name__ == "__main__":
